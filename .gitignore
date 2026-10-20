@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Pilot data and run outputs (the dataset is downloaded, logs are large)
+data/
+logs/
+demo/
+.DS_Store
+
+# Private notes: application drafts, reviewer Q&A, theory memo, literature notes
+notes/
