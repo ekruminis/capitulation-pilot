@@ -186,3 +186,7 @@ commit, with the pre-registration.
 
 Built with UK AISI's [Inspect](https://inspect.aisi.org.uk/). Items from
 `apps-control-arena` (MIT).
+
+## Licence
+
+MIT; see [LICENSE](LICENSE). The items come from `apps-control-arena`, also MIT.
