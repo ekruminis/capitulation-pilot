@@ -466,15 +466,16 @@ def boundary_table(runs: pd.DataFrame) -> pd.DataFrame:
     """Exploratory: flip rate for runs whose turn-0 suspicion was nearer the
     middle of the scale (closer to the decision threshold) vs further away.
 
-    Runs are split at the median distance |s0 - 5|, so the halves are about
-    the same size. Theory (notes/THEORY_MEMO.md, P0a) and Huang 2026 predict
-    more flips near the threshold.
+    Runs whose turn-0 score is at an end of the scale (0 or 10) count as far,
+    all others (1-9) as near. A median split would put every run in one half:
+    in Stage A most arm A scores were 10 and every arm B score was 0-2. Theory
+    (notes/THEORY_MEMO.md, P0a) and Huang 2026 predict more flips near the
+    threshold.
     """
     d = runs[runs.s0.notna() & runs.flip.notna()].copy()
     if d.empty:
         return pd.DataFrame()
-    distance = (d.s0 - 5).abs()
-    d["band"] = np.where(distance <= distance.median(), "near threshold", "far from threshold")
+    d["band"] = np.where(d.s0.isin([0, 10]), "far from threshold", "near threshold")
     table = d.pivot_table(index="condition", columns="band", values="flip", aggfunc=["mean", "count"])
     table.columns = [f"{'flip rate' if stat == 'mean' else 'runs'}, {band}" for stat, band in table.columns]
     return table.reindex([c for c in CONDITIONS if c in table.index])

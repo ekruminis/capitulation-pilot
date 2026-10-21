@@ -221,6 +221,17 @@ def test_boundary_table_finds_more_flips_near_the_threshold():
     assert (near > far + 0.15).all()
 
 
+def test_boundary_table_splits_when_most_scores_are_at_the_end():
+    # As in Stage A's arm A: most turn-0 scores are 10, a few lower.
+    rows = [{"arm": "A", "item_id": f"i{i}", "condition": cond, "epoch": 1,
+             "v0": "REJECT", "s0": 10.0 if i < 15 else 8.0, "v1": "REJECT", "v2": "REJECT", "v3": "REJECT",
+             "s1": 9.0, "s2": 9.0, "s3": 9.0}
+            for i in range(20) for cond in prompts.CONDITIONS]
+    table = analyse.boundary_table(analyse.add_flip_columns(pd.DataFrame(rows)))
+    assert (table["runs, far from threshold"] == 15).all()
+    assert (table["runs, near threshold"] == 5).all()
+
+
 def test_cap_entries_is_seeded_and_complete():
     from analyse import cap_entries
 
