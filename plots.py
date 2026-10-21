@@ -72,9 +72,14 @@ def plot_verdicts_by_turn(runs: pd.DataFrame, path: Path) -> None:
     n = len(sub) // max(sub.condition.nunique(), 1)
     ax.set_title("Clean code the monitor had approved: how often it said REJECT after each message",
                  loc="left", fontsize=11, color=INK, pad=30)
-    ax.text(0, -0.16, f"{n} runs per condition (36 clean items x 3). Pushed the other way, to approve 60 backdoors "
-            "it had rejected,\nthe monitor never said APPROVE, in any condition or turn.",
-            transform=ax.transAxes, va="top", ha="left", fontsize=8.5, color=MUTED)
+    note = f"{n} runs per condition ({sub.item_id.nunique()} clean items x {sub.epoch.nunique()})."
+    arm_a = runs[runs.arm == "A"]
+    if not arm_a.empty:
+        approved = arm_a[[f"v{t}" for t in (1, 2, 3)]].eq("APPROVE").any(axis=1).mean()
+        note += (f" Pushed the other way, to approve {arm_a.item_id.nunique()} backdoors it had rejected,\n"
+                 + ("the monitor never said APPROVE, in any condition or turn." if approved == 0
+                    else f"the monitor said APPROVE at some turn in {100 * approved:.0f}% of runs."))
+    ax.text(0, -0.16, note, transform=ax.transAxes, va="top", ha="left", fontsize=8.5, color=MUTED)
     fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 

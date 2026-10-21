@@ -7,6 +7,7 @@
   uv run python analyse.py power              items needed for a follow-up study
   uv run python analyse.py flips --arm A       export every flip for tagging, blind to condition
   uv run python analyse.py tags --arm A        count the tags by condition (after tagging)
+  uv run python analyse.py adaptive --arm A    scripted vs model-written pressure (extension_authors.py)
 
 By default each command reads the newest successful log of the right task in
 ./logs. Pass --log PATH (one or more) to choose logs yourself.
@@ -964,6 +965,72 @@ def cmd_tags(args) -> None:
     print(f"Saved {out / f'flip_tags_{arm}.csv'}")
 
 
+# Scripted vs model-written pressure: the same items and saved reviews, two logs.
+ADAPTIVE_EFFECTS = {
+    "adaptive vs scripted, one author": ("adaptive one_author", "one_author"),
+    "adaptive vs scripted, three authors": ("adaptive three_authors", "three_authors"),
+    "adaptive one author vs re-ask": ("adaptive one_author", "reask"),
+    "adaptive crowd (three minus one)": ("adaptive three_authors", "adaptive one_author"),
+}
+
+
+def adaptive_table(scripted: pd.DataFrame, adaptive: pd.DataFrame, column: str = "flip",
+                   n_boot: int = 10000, seed: int = 0) -> pd.DataFrame:
+    """Differences in flip rate between model-written and scripted conditions.
+
+    Both kinds of run replay the same saved Stage A review for an item and run
+    number, so items are paired: the bootstrap resamples items and keeps all
+    their runs, scripted and adaptive, together.
+    """
+    adaptive = adaptive[adaptive.condition != "reask"].assign(condition=lambda d: "adaptive " + d.condition)
+    both = pd.concat([scripted, adaptive], ignore_index=True)
+    m = both.pivot_table(index="item_id", columns="condition", values=column, aggfunc="mean")
+    boot = bootstrap_columns(m, n_boot, seed)
+    rows = []
+    for name, (a, b) in ADAPTIVE_EFFECTS.items():
+        if a in m.columns and b in m.columns:
+            lo, hi = interval((boot[a] - boot[b]).to_numpy())
+            rows.append({"effect": name, "estimate": float(m[a].mean() - m[b].mean()), "lo": lo, "hi": hi,
+                         "items": int(m[[a, b]].notna().all(axis=1).sum())})
+    return pd.DataFrame(rows)
+
+
+def author_problem_counts(logs: list) -> dict:
+    """How many model-written messages were sent, and how many failed (empty or refused)."""
+    sent = failed = retried = 0
+    for log in logs:
+        for s in log.samples or []:
+            score = _first_score(s)
+            if s.error or score is None:
+                continue
+            for t in score.metadata["turns"][1:]:
+                if t.get("author_model") is None:
+                    continue  # re-ask turn: no author
+                problems = t.get("author_problems") or []
+                if t.get("author_message") is None:
+                    failed += 1
+                else:
+                    sent += 1
+                    retried += bool(problems)
+    return {"sent": sent, "sent_after_retry": retried, "not_sent": failed}
+
+
+def cmd_adaptive(args) -> None:
+    arm = args.arm.upper()
+    scripted = pressure_rows(load_logs("pressure", args.log_dir, None, arm))
+    adaptive_logs = load_logs("llm_pressure", args.log_dir, args.log, arm)
+    adaptive = pressure_rows(adaptive_logs)
+    print(f"\nArm {arm}: flip rate at any turn")
+    rates = pd.concat([scripted, adaptive.assign(condition=lambda d: "adaptive " + d.condition)])
+    print(rates.groupby("condition").flip.agg(["mean", "count"]).round(3).to_string())
+    table = adaptive_table(scripted, adaptive, "flip", args.n_boot, args.seed)
+    print("\nDifferences (95% item-bootstrap interval)")
+    print(table.round(3).to_string(index=False))
+    print("\nAuthor messages:", author_problem_counts(adaptive_logs))
+    table.to_csv(results_dir() / f"adaptive_{arm}.csv", index=False)
+    print(f"Saved {results_dir() / f'adaptive_{arm}.csv'}")
+
+
 def cmd_power(args) -> None:
     runs = pressure_rows(load_logs("pressure", args.log_dir, args.log, args.arm.upper()))
     table, info = power_table(runs, effect=args.effect, n_sims=args.n_sims, seed=args.seed)
@@ -975,7 +1042,7 @@ def cmd_power(args) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("bakeoff", "stability", "pressure", "all", "power", "flips", "tags"):
+    for name in ("bakeoff", "stability", "pressure", "all", "power", "flips", "tags", "adaptive"):
         p = sub.add_parser(name)
         p.add_argument("--log-dir", default="logs")
         p.add_argument("--log", nargs="+", help="specific log file(s) to read")
@@ -998,6 +1065,7 @@ def main() -> None:
         "power": cmd_power,
         "flips": cmd_flips,
         "tags": cmd_tags,
+        "adaptive": cmd_adaptive,
     }[args.command](args)
 
 

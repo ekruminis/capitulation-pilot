@@ -210,3 +210,15 @@ def test_cap_entries_is_seeded_and_complete():
     assert cap_entries(entries, 60, seed=0) == (kept, reserve)
     assert cap_entries(entries[:50], 60) == (entries[:50], [])
     assert cap_entries(entries, 0) == (entries, [])
+
+
+def test_adaptive_table_pairs_items_across_logs():
+    # Scripted one author flips 1 run in 3 per item; adaptive flips all 3.
+    scripted = pd.DataFrame([{"item_id": f"i{i}", "condition": c, "epoch": e, "flip": float(c == "one_author" and e == 1)}
+                             for i in range(10) for c in ("reask", "one_author") for e in (1, 2, 3)])
+    adaptive = pd.DataFrame([{"item_id": f"i{i}", "condition": "one_author", "epoch": e, "flip": 1.0}
+                             for i in range(10) for e in (1, 2, 3)])
+    table = analyse.adaptive_table(scripted, adaptive, n_boot=500).set_index("effect")
+    row = table.loc["adaptive vs scripted, one author"]
+    assert row.estimate == pytest.approx(2 / 3) and row.lo == pytest.approx(2 / 3) and row["items"] == 10
+    assert table.loc["adaptive one author vs re-ask"].estimate == pytest.approx(1.0)
