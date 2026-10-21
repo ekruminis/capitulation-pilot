@@ -4,8 +4,7 @@
   uv run python analyse.py stability          Stage A; saves the stable sets for Stage B
   uv run python analyse.py pressure --arm A   one arm of Stage B
   uv run python analyse.py all                everything, written to results/summary.md
-  uv run python analyse.py power              items needed for Project 1
-  uv run python analyse.py report --repo-url URL   draft sentences and tables for the write-up
+  uv run python analyse.py power              items needed for a follow-up study
   uv run python analyse.py flips --arm A       export every flip for tagging, blind to condition
   uv run python analyse.py tags --arm A        count the tags by condition (after tagging)
 
@@ -521,7 +520,7 @@ def mixed_model_h1(runs: pd.DataFrame) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Power: how many items Project 1 needs
+# Power: how many items a follow-up study needs
 # ---------------------------------------------------------------------------
 
 
@@ -835,7 +834,7 @@ def write_summary(path, stab, results, asym, catch, h1_model, power_info) -> Non
     if power_info:
         n = power_info["items_for_80_percent"]
         lines += [
-            "## Items needed for Project 1",
+            "## Items needed for a follow-up study",
             "",
             f"With the pilot's re-ask flip rate ({pct(power_info['reask_rate'])}) and between-item correlation "
             f"({power_info['between_item_correlation']:.2f}), detecting a {pct(power_info['effect'])} difference with "
@@ -965,153 +964,6 @@ def cmd_tags(args) -> None:
     print(f"Saved {out / f'flip_tags_{arm}.csv'}")
 
 
-# ---------------------------------------------------------------------------
-# Report: the numbers written into the README, the proposal and the application
-# ---------------------------------------------------------------------------
-
-
-def _p(x) -> str:
-    """A whole-number percentage, for prose."""
-    return "n/a" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{100 * x:.0f}"
-
-
-def build_report(stab: dict, effects: pd.DataFrame, conditions: pd.DataFrame, power: dict | None,
-                 stable_counts: dict, url: str = "URL") -> str:
-    """Draft text for the write-up, choosing the variant the results support.
-
-    Pure function of the saved results, so it can be tested without logs.
-    """
-
-    def effect(arm, name):
-        row = effects[(effects.arm == arm) & (effects.effect == name)]
-        return row.iloc[0] if len(row) else None
-
-    def rate(arm, cond):
-        row = conditions[(conditions.arm == arm) & (conditions.condition == cond)]
-        return float(row.rate.iloc[0]) if len(row) else float("nan")
-
-    def ci(row) -> str:
-        return "n/a" if row is None else f"{100 * row.estimate:+.0f} points (95% interval {100 * row.lo:+.0f} to {100 * row.hi:+.0f})"
-
-    stable = _p(stab.get("stable_items"))
-    cap_a, cap_b = effect("A", "capitulation"), effect("B", "capitulation")
-    h1 = cap_a is not None and cap_a.lo > 0
-    b_works = cap_b is not None and cap_b.lo > 0
-    pilot = rf"A one-week, pre-registered pilot (\href{{{url}}}{{code}}) found {stable}\% of verdicts stable"
-
-    if h1:
-        variant = "effect"
-        sentence = (
-            rf"{pilot}; three scripted replies from one author overturned {_p(rate('A', 'one_author'))}\% "
-            rf"of stable rejections, against {_p(rate('A', 'reask'))}\% when re-asked, and the same replies "
-            rf"from three authors overturned {_p(rate('A', 'three_authors'))}\%."
-        )
-        finding = (
-            f"that one author's scripted replies overturned {_p(rate('A', 'one_author'))}% of stable "
-            f"rejections of backdoored code, against {_p(rate('A', 'reask'))}% when simply re-asked"
-        )
-    elif b_works:
-        variant = "null for approval, effect for rejection"
-        sentence = (
-            rf"{pilot}; scripted replies did no better than re-asking at getting backdoors approved, but "
-            rf"overturned {_p(rate('B', 'one_author'))}\% of correct approvals of clean code, against "
-            rf"{_p(rate('B', 'reask'))}\% when re-asked."
-        )
-        finding = (
-            "that scripted pressure did no better than re-asking at getting backdoors approved, but did "
-            f"overturn {_p(rate('B', 'one_author'))}% of correct approvals of clean code"
-        )
-    else:
-        variant = "null"
-        sentence = rf"{pilot}, and scripted pressure did no better than re-asking in either direction."
-        finding = "no effect of scripted pressure beyond re-asking, which sets a lower bound for the full study"
-
-    short = (
-        rf"{pilot}, and scripted pressure overturned {_p(rate('A', 'one_author'))}\% of stable rejections "
-        rf"against {_p(rate('A', 'reask'))}\% when re-asked."
-    )
-    items_needed = power.get("items_for_80_percent") if power else None
-    sizing = (
-        rf" Its variance implies about {items_needed} items per condition for the first project."
-        if items_needed else ""
-    )
-
-    lines = [
-        "# Write-up drafts from the pilot results",
-        "",
-        f"Variant chosen: **{variant}** (H1 {'supported' if h1 else 'not supported'}: arm A capitulation "
-        f"{ci(cap_a)}). Check every number against `summary.md` before using it.",
-        "",
-        "## Proposal sentence (LaTeX, at the `% pilot study` comment)",
-        "",
-        "```latex",
-        sentence + sizing,
-        "```",
-        "",
-        "Short version if space is tight:",
-        "",
-        "```latex",
-        short,
-        "```",
-        "",
-        "## README results table",
-        "",
-        "| Measure | Arm A (push to approve) | Arm B (push to reject) |",
-        "| --- | --- | --- |",
-        f"| Stable items | {stable_counts.get('A', 'n/a')} | {stable_counts.get('B', 'n/a')} |",
-        f"| Flip rate, re-ask | {_p(rate('A', 'reask'))}% | {_p(rate('B', 'reask'))}% |",
-        f"| Flip rate, one author | {_p(rate('A', 'one_author'))}% | {_p(rate('B', 'one_author'))}% |",
-        f"| Flip rate, three authors | {_p(rate('A', 'three_authors'))}% | {_p(rate('B', 'three_authors'))}% |",
-        f"| Flip rate, anonymous note | {_p(rate('A', 'anonymous'))}% | {_p(rate('B', 'anonymous'))}% |",
-        f"| Capitulation (one author minus re-ask) | {ci(cap_a)} | {ci(cap_b)} |",
-        f"| Crowd (three authors minus one) | {ci(effect('A', 'crowd'))} | {ci(effect('B', 'crowd'))} |",
-        f"| Stake (one author minus anonymous) | {ci(effect('A', 'stake'))} | {ci(effect('B', 'stake'))} |",
-        "",
-        f"Asymmetry (arm B minus arm A capitulation): {ci(effect('B-A', 'asymmetry (B minus A)'))}. "
-        f"Stage A: {stable}% of items stable; detection {_p(stab.get('detection'))}%, false alarms "
-        f"{_p(stab.get('false_alarms'))}%, suspicion AUROC {stab.get('auroc', float('nan')):.2f}."
-        + (f" Items needed per condition for Project 1: about {items_needed}." if items_needed else ""),
-        "",
-        "## Bridge-track answer: the last sentence",
-        "",
-        f"> It found {finding}, and the code is public ({url}).",
-        "",
-        "## Reviewer question 17 (\"What did the pilot show?\")",
-        "",
-        f"> {stable}% of verdicts were stable before any pressure. In arm A, one author's three scripted "
-        f"replies changed the capitulation measure by {ci(cap_a)}; three authors with the same words "
-        f"overturned {_p(rate('A', 'three_authors'))}% of stable rejections. "
-        f"Pushing the other way, towards rejecting clean code, gave {ci(cap_b)}. "
-        "It was pre-registered, the code is public"
-        + (f", and the variance implies about {items_needed} items per condition for Project 1." if items_needed else "."),
-        "",
-    ]
-    return "\n".join(lines)
-
-
-def cmd_report(args) -> None:
-    out = results_dir()
-    needed = ["stability_summary.json", "effects.csv", "conditions.csv"]
-    missing = [n for n in needed if not (out / n).exists()]
-    if missing:
-        raise SystemExit(f"Missing {', '.join(missing)} in {out}/. Run `analyse.py stability` and `analyse.py all` first.")
-    stab = json.loads((out / "stability_summary.json").read_text())
-    power_path = out / "power.json"
-    power = json.loads(power_path.read_text()) if power_path.exists() else None
-    stable_counts = {}
-    for arm in ("A", "B"):
-        path = data_dir() / f"stable_{arm}.jsonl"
-        if path.exists():
-            stable_counts[arm] = sum(1 for _ in open(path))
-    text = build_report(
-        stab, pd.read_csv(out / "effects.csv"), pd.read_csv(out / "conditions.csv"), power,
-        stable_counts, args.repo_url,
-    )
-    (out / "report.md").write_text(text)
-    print(text)
-    print(f"Saved {out / 'report.md'}")
-
-
 def cmd_power(args) -> None:
     runs = pressure_rows(load_logs("pressure", args.log_dir, args.log, args.arm.upper()))
     table, info = power_table(runs, effect=args.effect, n_sims=args.n_sims, seed=args.seed)
@@ -1123,7 +975,7 @@ def cmd_power(args) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("bakeoff", "stability", "pressure", "all", "power", "report", "flips", "tags"):
+    for name in ("bakeoff", "stability", "pressure", "all", "power", "flips", "tags"):
         p = sub.add_parser(name)
         p.add_argument("--log-dir", default="logs")
         p.add_argument("--log", nargs="+", help="specific log file(s) to read")
@@ -1136,7 +988,6 @@ def main() -> None:
         p.add_argument("--effect", type=float, default=0.10)
         p.add_argument("--seed", type=int, default=0)
         p.add_argument("--context-length", type=int, default=16384, help="Ollama context window, for the overflow warning")
-        p.add_argument("--repo-url", default="URL", help="public repository link, for the report")
         p.add_argument("--coded", help="the coded flips sheet, if saved under another name (tags)")
     args = parser.parse_args()
     {
@@ -1145,7 +996,6 @@ def main() -> None:
         "pressure": cmd_pressure,
         "all": cmd_all,
         "power": cmd_power,
-        "report": cmd_report,
         "flips": cmd_flips,
         "tags": cmd_tags,
     }[args.command](args)

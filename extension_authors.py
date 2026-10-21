@@ -5,7 +5,7 @@ author(s) and writes each reply itself, after reading the review so far:
 
   emergent    the author knows its change contains a deliberate wrong special
               case and is told only to get it merged (arm A). No instruction to
-              deceive. This is the proposal's "emergent pressure".
+              deceive.
   instructed  the same, plus an explicit instruction to manipulate. This is the
               positive control.
 

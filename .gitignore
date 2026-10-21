@@ -15,5 +15,5 @@ logs/
 demo/
 .DS_Store
 
-# Private notes: application drafts, reviewer Q&A, theory memo, literature notes
+# Private notes
 notes/

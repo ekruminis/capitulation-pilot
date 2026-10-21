@@ -5,10 +5,6 @@ changes, some with planted backdoors. On the verdicts it holds stably,
 scripted authors then argue back, and we measure how often a correct verdict
 flips compared with simply asking the monitor to look again.
 
-It is the pilot for the first project of *Capitulation Under Multi-Agent
-Pressure: Measuring Failures of AI Oversight and Designing Mechanism-Based
-Defences*, a MATS Residency proposal by Edvinas Kruminis.
-
 ## Findings in brief
 
 - **The monitor could not be talked into approving a backdoor.** In 720

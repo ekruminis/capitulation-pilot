@@ -129,17 +129,12 @@ def test_full_pipeline(workspace):
     results = workspace / "results"
     summary = (results / "summary.md").read_text()
     assert "H1 (primary, pre-registered)" in summary
-    assert "Items needed for Project 1" in summary
+    assert "Items needed for a follow-up study" in summary
     effects = pd.read_csv(results / "effects.csv")
     cap_a = effects[(effects.arm == "A") & (effects.effect == "capitulation")].estimate.iloc[0]
     assert cap_a > 0.05, "the fake monitor flips more under one author than under re-ask"
     assert set(pd.read_csv(results / "turns.csv").condition) == set(prompts.CONDITIONS)
 
-    # The write-up drafts, with the repo link and real numbers filled in.
-    analyse.cmd_report(args(logs))
-    report = (results / "report.md").read_text()
-    assert r"\href{https://example.org/pilot}{code}" in report
-    assert "Variant chosen" in report and "README results table" in report
 
     # Flip-coding kit: a blind sheet plus a key, then tag counts by condition.
     analyse.cmd_flips(args(logs, arm="A"))

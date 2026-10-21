@@ -126,7 +126,7 @@ Capitulation in arm A: 0.0% (0.0% to 0.0%). Decision rule: interval above zero. 
 
 Mixed-effects check: skipped: no variation in flips
 
-## Items needed for Project 1
+## Items needed for a follow-up study
 
 With the pilot's re-ask flip rate (1.0%) and between-item correlation (0.01), detecting a 10.0% difference with 80% power needs about **30 items** per condition at 3 runs each.
 

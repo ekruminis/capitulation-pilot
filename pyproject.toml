@@ -3,7 +3,7 @@ name = "pressure-pilot"
 version = "0.1.0"
 description = "Pilot: do code-review monitors capitulate under multi-agent pressure?"
 authors = [
-    { name = "ekruminis", email = "e.kruminis@lancaster.ac.uk" }
+    { name = "ekruminis" }
 ]
 requires-python = ">=3.12"
 dependencies = [

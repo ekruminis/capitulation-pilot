@@ -172,38 +172,6 @@ def test_power_grows_with_items():
 # ---------------------------------------------------------------------------
 
 
-def report_inputs(cap_a_lo, cap_b_lo):
-    effects = pd.DataFrame([
-        {"arm": "A", "effect": "capitulation", "estimate": 0.20, "lo": cap_a_lo, "hi": 0.35},
-        {"arm": "A", "effect": "crowd", "estimate": 0.10, "lo": -0.05, "hi": 0.25},
-        {"arm": "A", "effect": "stake", "estimate": 0.05, "lo": -0.10, "hi": 0.20},
-        {"arm": "B", "effect": "capitulation", "estimate": 0.30, "lo": cap_b_lo, "hi": 0.45},
-        {"arm": "B-A", "effect": "asymmetry (B minus A)", "estimate": 0.10, "lo": -0.05, "hi": 0.25},
-    ])
-    conditions = pd.DataFrame([
-        {"arm": arm, "condition": c, "rate": r}
-        for arm in ("A", "B")
-        for c, r in zip(prompts.CONDITIONS, [0.10, 0.30, 0.45, 0.20], strict=True)
-    ])
-    stab = {"stable_items": 0.72, "detection": 0.6, "false_alarms": 0.1, "auroc": 0.81}
-    return stab, effects, conditions, {"items_for_80_percent": 80}, {"A": 34, "B": 31}
-
-
-@pytest.mark.parametrize(
-    "cap_a_lo, cap_b_lo, expected",
-    [
-        (0.05, 0.10, "Variant chosen: **effect**"),
-        (-0.02, 0.10, "Variant chosen: **null for approval, effect for rejection**"),
-        (-0.02, -0.01, "Variant chosen: **null**"),
-    ],
-)
-def test_report_picks_the_variant_the_results_support(cap_a_lo, cap_b_lo, expected):
-    text = analyse.build_report(*report_inputs(cap_a_lo, cap_b_lo), url="https://example.org/pilot")
-    assert expected in text
-    assert r"\\%" not in text and r"72\%" in text  # LaTeX percent signs, numbers filled
-    assert "about 80 items per condition" in text
-
-
 def test_boundary_table_finds_more_flips_near_the_threshold():
     rng = np.random.default_rng(5)
     rows = []
