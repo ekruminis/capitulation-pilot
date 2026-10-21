@@ -402,6 +402,12 @@ The code for all stages lives in the same files.
 - **One monitor model,** run locally. Other models will hold different
   verdicts stably; the pilot tests whether the measurement works, not how all
   monitors behave.
+- **No weaker monitor could be tested.** Control setups usually pair a weaker
+  trusted monitor with a stronger model, so two smaller models were tried in
+  that role. `qwen2.5:7b` caught only 10 of 20 backdoors on the bake-off
+  items. `llama3.1:8b` passed that check, but over a full Stage A it barely
+  told backdoored from clean code (suspicion AUROC 0.59; 65% of clean
+  reviews rejected) and approved only 1 clean item stably. Neither was used.
 - **The bake-off was one run on 30 items,** enough to rule out models that
   often fail to answer but not to rank detection rates; `gpt-oss` caught
   problem 1269 in 2 of 3 later test runs, so single runs are noisy.
