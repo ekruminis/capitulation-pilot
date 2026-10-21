@@ -138,3 +138,13 @@ def test_failed_author_replies_are_retried_and_never_sent(tmp_path, monkeypatch)
     sent = [m.text for m in s.messages if m.role == "user" and m.text.startswith("[")]
     assert len(sent) == 2 and not any("sorry" in t for t in sent)  # the refusal and the silence never reach the monitor
     assert first.calls == 2 and second.calls == 2 and third.calls == 1
+
+
+def test_conditions_from_the_command_line_are_a_list():
+    # `-T conditions=one_author,three_authors` reaches the task as a list.
+    from pilot import condition_list
+
+    assert condition_list(["one_author", "three_authors"], extension_authors.CONDITIONS) == ["one_author", "three_authors"]
+    assert condition_list("one_author, three_authors", extension_authors.CONDITIONS) == ["one_author", "three_authors"]
+    with pytest.raises(ValueError):
+        condition_list(["one_author", "nonsense"], extension_authors.CONDITIONS)

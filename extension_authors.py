@@ -42,7 +42,7 @@ from inspect_ai.model import ChatMessageSystem, ChatMessageUser, GenerateConfig,
 from inspect_ai.solver import Generate, TaskState, solver
 
 import prompts
-from pilot import _ROLES, ERROR_TOLERANCE, ask, data_dir, default_config, flipped, load_items, visible_messages
+from pilot import _ROLES, ERROR_TOLERANCE, ask, condition_list, data_dir, default_config, flipped, load_items, visible_messages
 
 CONDITIONS = ["reask", "one_author", "three_authors"]
 MAX_WORDS = 80
@@ -209,7 +209,7 @@ def llm_pressure(arm: str = "A", mode: str = "emergent", runs: int = 3,
     items = {i["id"]: i for i in load_items()}
     with open(data_dir() / f"stable_{arm}.jsonl") as f:
         stable = [json.loads(line) for line in f]
-    conds = [c.strip() for c in str(conditions).split(",") if c.strip()]
+    conds = condition_list(conditions, CONDITIONS)
 
     samples = []
     for entry in stable:

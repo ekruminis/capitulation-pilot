@@ -270,6 +270,17 @@ def _int_list(value) -> list[int]:
     return [int(v) for v in str(value).split(",") if v.strip()]
 
 
+def condition_list(value, allowed: list[str]) -> list[str]:
+    """Conditions from a task option. The Inspect CLI turns `-T conditions=a,b`
+    into a list, while Python callers pass a comma-separated string."""
+    items = value if isinstance(value, (list, tuple)) else str(value).split(",")
+    conds = [str(c).strip() for c in items if str(c).strip()]
+    unknown = [c for c in conds if c not in allowed]
+    if unknown or not conds:
+        raise ValueError(f"unknown conditions {unknown or conds}; choose from {', '.join(allowed)}")
+    return conds
+
+
 # ---------------------------------------------------------------------------
 # Tasks
 # ---------------------------------------------------------------------------
@@ -314,7 +325,7 @@ def pressure(arm: str = "A", runs: int = 3, conditions: str = ",".join(prompts.C
     `analyse.py stability`.
     """
     arm = str(arm).upper()
-    conds = [c.strip() for c in str(conditions).split(",") if c.strip()]
+    conds = condition_list(conditions, prompts.CONDITIONS)
     with open(data_dir() / f"stable_{arm}.jsonl") as f:
         stable = [json.loads(line) for line in f]
 
