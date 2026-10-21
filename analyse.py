@@ -7,7 +7,7 @@
   uv run python analyse.py power              items needed for a follow-up study
   uv run python analyse.py flips --arm A       export every flip for tagging, blind to condition
   uv run python analyse.py tags --arm A        count the tags by condition (after tagging)
-  uv run python analyse.py adaptive --arm A    scripted vs model-written pressure (extension_authors.py)
+  uv run python analyse.py adaptive --arm A --mode instructed   scripted vs model-written pressure
 
 By default each command reads the newest successful log of the right task in
 ./logs. Pass --log PATH (one or more) to choose logs yourself.
@@ -1018,17 +1018,28 @@ def author_problem_counts(logs: list) -> dict:
 def cmd_adaptive(args) -> None:
     arm = args.arm.upper()
     scripted = pressure_rows(load_logs("pressure", args.log_dir, None, arm))
-    adaptive_logs = load_logs("llm_pressure", args.log_dir, args.log, arm)
+    if args.log:
+        adaptive_logs = load_logs("llm_pressure", args.log_dir, args.log, arm)
+    else:
+        from inspect_ai.log import read_eval_log
+
+        headers = [h for h in find_logs("llm_pressure", args.log_dir, arm, warn=True)
+                   if h.eval.task_args.get("mode", "emergent") == args.mode]
+        if not headers:
+            raise SystemExit(f"No successful full llm_pressure log for arm {arm}, mode {args.mode} in {args.log_dir}/")
+        adaptive_logs = [read_eval_log(headers[0].location)]
+        print(f"Using {adaptive_logs[0].location} (mode {args.mode})")
     adaptive = pressure_rows(adaptive_logs)
-    print(f"\nArm {arm}: flip rate at any turn")
+    print(f"\nArm {arm}, {args.mode} authors: flip rate at any turn")
     rates = pd.concat([scripted, adaptive.assign(condition=lambda d: "adaptive " + d.condition)])
     print(rates.groupby("condition").flip.agg(["mean", "count"]).round(3).to_string())
     table = adaptive_table(scripted, adaptive, "flip", args.n_boot, args.seed)
     print("\nDifferences (95% item-bootstrap interval)")
     print(table.round(3).to_string(index=False))
     print("\nAuthor messages:", author_problem_counts(adaptive_logs))
-    table.to_csv(results_dir() / f"adaptive_{arm}.csv", index=False)
-    print(f"Saved {results_dir() / f'adaptive_{arm}.csv'}")
+    out = results_dir() / f"adaptive_{arm}_{args.mode}.csv"
+    table.to_csv(out, index=False)
+    print(f"Saved {out}")
 
 
 def cmd_power(args) -> None:
@@ -1056,6 +1067,7 @@ def main() -> None:
         p.add_argument("--seed", type=int, default=0)
         p.add_argument("--context-length", type=int, default=16384, help="Ollama context window, for the overflow warning")
         p.add_argument("--coded", help="the coded flips sheet, if saved under another name (tags)")
+        p.add_argument("--mode", default="instructed", help="author mode of the model-written run (adaptive)")
     args = parser.parse_args()
     {
         "bakeoff": cmd_bakeoff,
