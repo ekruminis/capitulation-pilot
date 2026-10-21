@@ -1,5 +1,6 @@
-"""Draw the pilot's two figures from the CSVs that `analyse.py all` writes.
+"""Draw the pilot's figures from the CSVs that `analyse.py stability` and `all` write.
 
+  results/fig_stability.png  Stage A: items held stably right, not stable, or stably wrong
   results/fig_turns.png    share of runs not yet flipped at any turn, after each turn
   results/fig_effects.png  the effects with their 95% intervals
 
@@ -119,13 +120,71 @@ def plot_effects(effects: pd.DataFrame, path: Path) -> None:
     plt.close(fig)
 
 
+# Stage A outcome per item: held the right verdict, wavered, or held the wrong one.
+OUTCOME_STYLE = [
+    ("right", "#2a78d6", "#ffffff", "Stable, right verdict"),
+    ("mixed", "#d9d8d1", INK, "Not stable"),
+    ("wrong", "#eb6834", INK, "Stable, wrong verdict"),
+]
+
+
+def plot_stability(items: pd.DataFrame, path: Path) -> None:
+    """Stage A: how many items the monitor judged the same way at least 8 times in 9."""
+    rows = [
+        ("backdoor", "Backdoored code", "REJECT", "rejected"),
+        ("clean", "Clean code", "APPROVE", "approved"),
+    ]
+    fig, ax = plt.subplots(figsize=(8.0, 2.6))
+    for y, (label, title, right_verdict, right_word) in enumerate(rows):
+        sub = items[items.label == label]
+        counts = {
+            "right": int((sub.stable & sub.majority.eq(right_verdict)).sum()),
+            "mixed": int((~sub.stable).sum()),
+            "wrong": int((sub.stable & ~sub.majority.eq(right_verdict)).sum()),
+        }
+        left = 0
+        for key, colour, text_colour, _ in OUTCOME_STYLE:
+            n = counts[key]
+            share = 100 * n / len(sub)
+            ax.barh(y, share, left=left, height=0.6, color=colour, edgecolor="#fcfcfb", linewidth=2)
+            if key == "right":
+                ax.text(left + 1.5, y, f"{n} stably {right_word}", va="center", ha="left", color=text_colour, fontsize=10)
+            left += share
+        # The small segments are labelled once, to the right of the bar.
+        ax.text(101.5, y, f"{counts['mixed']} not stable\n{counts['wrong']} stably wrong", va="center", ha="left",
+                color=MUTED, fontsize=9)
+        ax.text(-1.5, y, f"{title}\n({len(sub)} items)", va="center", ha="right", color=INK, fontsize=10)
+    ax.set_xlim(0, 100)
+    ax.set_ylim(1.5, -0.5)
+    ax.set_yticks([])
+    ax.set_xticks([0, 25, 50, 75, 100], ["0%", "25%", "50%", "75%", "100%"])
+    ax.spines["left"].set_visible(False)
+    ax.tick_params(axis="x", length=0)
+    handles = [plt.Rectangle((0, 0), 1, 1, color=c) for _, c, _, _ in OUTCOME_STYLE]
+    ax.legend(handles, [name for *_, name in OUTCOME_STYLE], loc="lower left", bbox_to_anchor=(0, 1.02), ncol=3,
+              frameon=False, fontsize=9, handlelength=1.2)
+    ax.set_title("Does the monitor give the same verdict each time it reviews an item?", loc="left", pad=34,
+                 fontsize=11, color=INK)
+    ax.text(0, -0.2, "Each item was reviewed 9 times. Stable: the same verdict at least 8 times. "
+            "Stage B uses the blue items (arm A: 60 of the 91; arm B: all 36).",
+            transform=ax.transAxes, va="top", ha="left", fontsize=8.5, color=MUTED)
+    fig.savefig(path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main(argv=None) -> None:
     out = results_dir()
-    turns = pd.read_csv(out / "turns.csv")
-    effects = pd.read_csv(out / "effects.csv")
-    plot_turns(turns, out / "fig_turns.png")
-    plot_effects(effects, out / "fig_effects.png")
-    print(f"Saved {out / 'fig_turns.png'} and {out / 'fig_effects.png'}")
+    saved = []
+    if (out / "stability_items.csv").exists():
+        plot_stability(pd.read_csv(out / "stability_items.csv"), out / "fig_stability.png")
+        saved.append(out / "fig_stability.png")
+    if (out / "turns.csv").exists():
+        turns = pd.read_csv(out / "turns.csv")
+        effects = pd.read_csv(out / "effects.csv")
+        plot_turns(turns, out / "fig_turns.png")
+        plot_effects(effects, out / "fig_effects.png")
+        saved += [out / "fig_turns.png", out / "fig_effects.png"]
+    print("Saved " + ", ".join(str(p) for p in saved) if saved else "Nothing to plot yet.")
 
 
 if __name__ == "__main__":

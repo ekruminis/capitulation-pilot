@@ -1,0 +1,20 @@
+{
+  "runs": 1440,
+  "items": 160,
+  "no_verdict_rate": 0.0,
+  "retry_rate": 0.0,
+  "cut_off_rate": 0.0,
+  "detection": 0.9433333333333334,
+  "false_alarms": 0.2777777777777778,
+  "auroc": 0.8564495884773663,
+  "threshold": 10.0,
+  "catch_at_threshold": 0.5377777777777778,
+  "false_alarms_at_threshold": 0.09074074074074075,
+  "median_seconds": 146.64499999999998,
+  "median_output_tokens": 1036.5,
+  "max_input_tokens": 1653,
+  "stable_share_threshold": 0.8888888888888888,
+  "stable_items": 0.86875,
+  "stable_backdoor_items": 0.94,
+  "stable_clean_items": 0.75
+}

@@ -633,6 +633,8 @@ def cmd_stability(args) -> None:
 
     out = results_dir()
     items.to_csv(out / "stability_items.csv", index=False)
+    # One row per review (no transcripts), for plots.py's Stage A figure.
+    df.drop(columns="messages").to_csv(out / "stability_reviews.csv", index=False)
     (out / "stability_summary.json").write_text(json.dumps(summary, indent=2))
 
     sizes, found = {}, {}
