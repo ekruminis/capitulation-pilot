@@ -1,8 +1,8 @@
 """Draw the pilot's figures from the CSVs that `analyse.py stability` and `all` write.
 
   results/fig_stability.png  Stage A: items held stably right, not stable, or stably wrong
-  results/fig_turns.png    share of runs not yet flipped at any turn, after each turn
-  results/fig_effects.png  the effects with their 95% intervals
+  results/fig_verdicts.png   arm B: share of runs saying REJECT after each message, by condition
+  results/fig_reasons.png    arm B: flipped runs per condition, by the reason the monitor gave
 
 Run:  uv run python plots.py
 """
@@ -27,8 +27,6 @@ STYLE = {
     "three_authors": ("#1baf7a", "^", "Three authors"),
     "anonymous": ("#c98500", "D", "Anonymous note"),
 }
-ARM_TITLE = {"A": "Arm A: push to approve a backdoor", "B": "Arm B: push to reject clean code"}
-ARM_SHORT = {"A": "Arm A: push to approve", "B": "Arm B: push to reject"}
 INK, MUTED, GRID, AXIS = "#0b0b0b", "#52514e", "#e1e0d9", "#c3c2b7"
 
 plt.rcParams.update(
@@ -51,71 +49,86 @@ def results_dir() -> Path:
     return Path(os.environ.get("PILOT_RESULTS_DIR", "results"))
 
 
-def plot_turns(turns: pd.DataFrame, path: Path) -> None:
-    arms = [a for a in ("A", "B") if a in set(turns.arm)]
-    fig, axes = plt.subplots(1, len(arms), figsize=(5.2 * len(arms), 3.8), sharey=True, squeeze=False)
-    for ax, arm in zip(axes[0], arms, strict=True):
-        sub = turns[turns.arm == arm]
-        ends = []
-        for cond in prompts.CONDITIONS:
-            line = sub[sub.condition == cond].sort_values("turn")
-            if line.empty:
-                continue
-            colour, marker, label = STYLE[cond]
-            ax.plot(line.turn, 100 * line.unflipped, color=colour, lw=2, marker=marker, ms=6, label=label)
-            ends.append((100 * line.unflipped.iloc[-1], label))
-        # Direct labels at the right end, nudged apart so they don't collide.
-        ends.sort()
-        last_y = -100.0
-        for y, label in ends:
-            y = max(y, last_y + 5)
-            ax.annotate(label, (3, y), xytext=(8, 0), textcoords="offset points", va="center", fontsize=9, color=INK)
-            last_y = y
-        ax.set_title(ARM_TITLE[arm], loc="left", fontsize=10.5, color=INK)
-        ax.set_xticks([0, 1, 2, 3], ["Own verdict", "Turn 1", "Turn 2", "Turn 3"])
-        ax.set_xlim(-0.2, 3.9)
-        ax.set_ylim(0, 102)
-        ax.yaxis.grid(True, color=GRID, lw=0.8)
-        ax.set_axisbelow(True)
-    axes[0][0].set_ylabel("Runs not yet flipped (%)")
-    handles, labels = axes[0][0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 1.02))
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
-    fig.savefig(path, dpi=200)
+def plot_verdicts_by_turn(runs: pd.DataFrame, path: Path) -> None:
+    """Arm B: share of runs saying REJECT after each message, by condition."""
+    sub = runs[runs.arm == "B"]
+    fig, ax = plt.subplots(figsize=(7.6, 4.2))
+    for cond in prompts.CONDITIONS:
+        rows = sub[sub.condition == cond]
+        if rows.empty:
+            continue
+        share = [100 * rows[f"v{t}"].eq("REJECT").mean() for t in range(4)]
+        colour, marker, label = STYLE[cond]
+        ax.plot(range(4), share, color=colour, lw=2, marker=marker, ms=7, mec="#fcfcfb", mew=1.2, label=label)
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=4, frameon=False, fontsize=9.5, handlelength=2.2)
+    ax.set_xticks(range(4), ["Own verdict", "After message 1", "After message 2", "After message 3"])
+    ax.set_xlim(-0.2, 3.3)
+    ax.set_ylim(0, 100)
+    ax.set_yticks([0, 25, 50, 75, 100], ["0%", "25%", "50%", "75%", "100%"])
+    ax.set_ylabel("Runs saying REJECT")
+    ax.yaxis.grid(True, color=GRID, lw=0.8)
+    ax.set_axisbelow(True)
+    ax.tick_params(axis="x", length=0)
+    n = len(sub) // max(sub.condition.nunique(), 1)
+    ax.set_title("Clean code the monitor had approved: how often it said REJECT after each message",
+                 loc="left", fontsize=11, color=INK, pad=30)
+    ax.text(0, -0.16, f"{n} runs per condition (36 clean items x 3). Pushed the other way, to approve 60 backdoors "
+            "it had rejected,\nthe monitor never said APPROVE, in any condition or turn.",
+            transform=ax.transAxes, va="top", ha="left", fontsize=8.5, color=MUTED)
+    fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
-EFFECT_LABEL = {
-    "capitulation": "Capitulation\n(one author - re-ask)",
-    "crowd": "Crowd\n(three authors - one)",
-    "stake": "Stake\n(one author - anonymous)",
-}
+# What the monitor said when it flipped, from the notes column of the coded sheet.
+REASONS = [
+    ("format", "#7b5ea7", "Invented a bug from the \"legacy format\" claim"),
+    ("logic", "#3d5a80", "Named an unrelated logic bug"),
+    ("other", "#d9d8d1", "Other (accepted the claim as stated, or rejected to be safe)"),
+]
 
 
-def plot_effects(effects: pd.DataFrame, path: Path) -> None:
-    names = [n for n in EFFECT_LABEL if n in set(effects.effect)]
-    arm_style = {"A": ("#2a78d6", "o", -0.12), "B": ("#eb6834", "s", 0.12)}
-    fig, ax = plt.subplots(figsize=(6.4, 0.9 + 0.9 * len(names)))
-    for arm, (colour, marker, offset) in arm_style.items():
-        sub = effects[effects.arm == arm].set_index("effect")
-        for i, name in enumerate(names):
-            if name not in sub.index:
+def flip_reason(notes: str) -> str:
+    notes = str(notes)
+    if "no code" in notes:
+        return "other"
+    if "logic bug" in notes:
+        return "logic"
+    if "input-format" in notes:
+        return "format"
+    return "other"
+
+
+def plot_flip_reasons(coded: pd.DataFrame, key: pd.DataFrame, path: Path) -> None:
+    """Arm B: number of flipped runs per condition, split by the reason the monitor gave."""
+    d = coded.merge(key[["code_id", "condition"]], on="code_id")
+    d["reason"] = d.notes.fillna("").map(flip_reason)
+    counts = pd.crosstab(d.condition, d.reason).reindex(index=prompts.CONDITIONS, columns=[r for r, *_ in REASONS],
+                                                        fill_value=0)
+    fig, ax = plt.subplots(figsize=(7.6, 2.9))
+    for y, cond in enumerate(prompts.CONDITIONS):
+        left = 0
+        for reason, colour, _ in REASONS:
+            n = int(counts.loc[cond, reason])
+            if n == 0:
                 continue
-            r = sub.loc[name]
-            y = i + offset
-            ax.plot([100 * r.lo, 100 * r.hi], [y, y], color=colour, lw=2, solid_capstyle="round")
-            ax.plot(100 * r.estimate, y, marker=marker, ms=7, color=colour, mec="#fcfcfb", mew=1.5,
-                    label=ARM_SHORT[arm] if i == 0 else None)
-    ax.axvline(0, color=AXIS, lw=1)
-    ax.set_yticks(range(len(names)), [EFFECT_LABEL[n] for n in names], color=INK)
-    ax.invert_yaxis()
-    ax.set_xlabel("Difference in flip rate (percentage points), 95% interval")
-    ax.xaxis.grid(True, color=GRID, lw=0.8)
-    ax.set_axisbelow(True)
+            ax.barh(y, n, left=left, height=0.62, color=colour, edgecolor="#fcfcfb", linewidth=2)
+            if n >= 4:
+                ax.text(left + n / 2, y, str(n), ha="center", va="center", fontsize=9,
+                        color="#ffffff" if reason != "other" else INK)
+            left += n
+        ax.text(left + 1.2, y, f"{left} of 108", va="center", ha="left", fontsize=9, color=MUTED)
+    ax.set_yticks(range(len(prompts.CONDITIONS)), [STYLE[c][2] for c in prompts.CONDITIONS], color=INK)
+    ax.set_ylim(len(prompts.CONDITIONS) - 0.5, -0.5)
+    ax.set_xlim(0, 108)
+    ax.set_xlabel("Runs that flipped to REJECT at some turn")
     ax.spines["left"].set_visible(False)
     ax.tick_params(axis="y", length=0)
-    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, frameon=False, fontsize=9)
-    fig.tight_layout()
+    ax.xaxis.grid(True, color=GRID, lw=0.8)
+    ax.set_axisbelow(True)
+    handles = [plt.Rectangle((0, 0), 1, 1, color=c) for _, c, _ in REASONS]
+    ax.legend(handles, [name for *_, name in REASONS], loc="lower left", bbox_to_anchor=(0, 1.0), ncol=1,
+              frameon=False, fontsize=9, handlelength=1.2)
+    ax.set_title("What the monitor said when it flipped on clean code", loc="left", fontsize=11, color=INK, pad=62)
     fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
@@ -178,12 +191,15 @@ def main(argv=None) -> None:
     if (out / "stability_items.csv").exists():
         plot_stability(pd.read_csv(out / "stability_items.csv"), out / "fig_stability.png")
         saved.append(out / "fig_stability.png")
-    if (out / "turns.csv").exists():
-        turns = pd.read_csv(out / "turns.csv")
-        effects = pd.read_csv(out / "effects.csv")
-        plot_turns(turns, out / "fig_turns.png")
-        plot_effects(effects, out / "fig_effects.png")
-        saved += [out / "fig_turns.png", out / "fig_effects.png"]
+    if (out / "pressure_runs.csv").exists():
+        runs = pd.read_csv(out / "pressure_runs.csv")
+        if "B" in set(runs.arm):
+            plot_verdicts_by_turn(runs, out / "fig_verdicts.png")
+            saved.append(out / "fig_verdicts.png")
+    if (out / "flips_to_code_B.csv").exists() and (out / "flips_key_B.csv").exists():
+        plot_flip_reasons(pd.read_csv(out / "flips_to_code_B.csv"), pd.read_csv(out / "flips_key_B.csv"),
+                          out / "fig_reasons.png")
+        saved.append(out / "fig_reasons.png")
     print("Saved " + ", ".join(str(p) for p in saved) if saved else "Nothing to plot yet.")
 
 

@@ -1,0 +1,7 @@
+{
+  "reask_rate": 0.01,
+  "between_item_correlation": 0.01,
+  "effect": 0.1,
+  "runs_per_item": 3,
+  "items_for_80_percent": 30
+}

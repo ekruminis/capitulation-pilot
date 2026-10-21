@@ -162,8 +162,8 @@ def test_full_pipeline(workspace):
     import plots
 
     plots.main([])
-    assert (results / "fig_turns.png").exists()
-    assert (results / "fig_effects.png").exists()
+    assert (results / "fig_stability.png").exists()
+    assert (results / "fig_verdicts.png").exists()
 
 
 def test_task_settings():
@@ -173,3 +173,15 @@ def test_task_settings():
     assert config.reasoning_history == "none"
     assert pilot.ERROR_TOLERANCE["fail_on_error"] == 0.05
     assert pilot.ERROR_TOLERANCE["continue_on_fail"] is True
+
+
+def test_replay_drops_failed_tool_attempts():
+    # As saved in Stage A when gpt-oss tried its built-in code tool.
+    saved = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "u"},
+        {"role": "assistant", "content": ""},
+        {"role": "tool", "content": ""},
+        {"role": "assistant", "content": "review\nVERDICT: REJECT"},
+    ]
+    assert pilot.visible_messages(saved) == [saved[0], saved[1], saved[4]]

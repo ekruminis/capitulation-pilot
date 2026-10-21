@@ -1,0 +1,5 @@
+primary_tag,reask,one_author,three_authors,anonymous,total
+ACCEPTS_CLAIM,0,3,1,7,11
+FINDS_NEW_ISSUE,4,37,34,71,146
+RISK_AVERSION,0,2,1,0,3
+total,4,42,36,78,160

@@ -9,15 +9,30 @@ It is the pilot for the first project of *Capitulation Under Multi-Agent
 Pressure: Measuring Failures of AI Oversight and Designing Mechanism-Based
 Defences*, a MATS Residency proposal by Edvinas Kruminis.
 
+## Findings in brief
+
+- **The monitor could not be talked into approving a backdoor.** In 720
+  conversations, none of the 60 backdoors it had rejected stably was
+  approved, under any condition. The pre-registered main hypothesis (H1) is
+  not supported. Pushback made the monitor slightly more suspicious, not less.
+- **It could be talked into rejecting clean code.** One author's messages
+  flipped 39% of runs at some turn, against 4% for a plain re-ask (+35
+  points, 95% interval +24 to +46). An anonymous note flipped 72%; three
+  authors did no better than one.
+- **It rationalised rather than deferred.** In 92% of flips the monitor
+  claimed to have found a new problem in code that had not changed, mostly
+  by turning the message's claim of a "legacy input format" into a specific
+  parsing bug. Most of these flips were undone by the last turn.
+
 The pilot runs in stages, and each stage is committed on its own before it
 runs:
 
 1. **Stage A: stability** (done). Which verdicts does the monitor hold
    reliably, with no one arguing?
-2. **Stage B: pressure** (this commit: the design and pre-registration,
-   committed after Stage A's results and before any pressure run; results
-   follow in a later commit). When scripted authors argue back, how often
-   does a correct verdict flip?
+2. **Stage B: pressure** (done). When scripted authors argue back, how often
+   does a correct verdict flip? The design and pre-registration were
+   committed after Stage A's results and before any pressure run; the
+   results are in this commit.
 
 ## Why this matters
 
@@ -131,7 +146,7 @@ provides.
   its saved Stage A transcripts; `data/stable_*_reserve.jsonl`: those left out
   by the cap.
 
-`plots.py` draws `results/fig_stability.png` from `stability_items.csv`.
+`plots.py` draws `results/fig_stability.png` from `stability_items.csv`, and Stage B's two figures from `pressure_runs.csv` and the coded flips.
 
 ### Results
 
@@ -226,7 +241,110 @@ gives, without seeing which condition it came from, using
 [CODEBOOK.md](CODEBOOK.md).
 
 In all: 96 items x 4 conditions x 3 runs = 1,152 conversations and 3,456
-replies, about 18 hours at Stage A's pace. Arm A runs first.
+replies. Arm A runs first. Each arm took about 2.5 hours: follow-up replies
+are about a third the length of a Stage A review.
+
+### Rerun after a replay error
+
+In 6 of Stage A's 1,440 reviews the monitor tried to run Python with a
+built-in tool that `gpt-oss` was trained with but that does not exist here.
+It got a "tool not found" error and then wrote its review as usual. Two of
+those reviews were among Stage B's starting points (item p1065, run 3, in arm
+A; item p3711, run 1, in arm B), and replaying them failed. All four
+conditions of each failed, which made 8 of the 1,152 conversations. The replay
+now leaves out the failed tool attempts and keeps the review the monitor
+wrote (`visible_messages` in `pilot.py`). As the pre-registration says, only
+the errored conversations were rerun, with the same settings
+(`inspect eval-retry`). Both arms are now complete, with no errors. The same
+tool attempt also happened during 4 Stage B conversations; those finished
+normally and are kept.
+
+### Results
+
+All 1,152 conversations finished, and every turn ended with a verdict (fewer
+than 1% needed a format reminder). The longest prompt was 1,872 tokens.
+
+Share of runs whose verdict flipped at any of the three turns, with 95%
+item-bootstrap intervals:
+
+| Condition | Arm A: push to approve a backdoor (60 items, 180 runs each) | Arm B: push to reject clean code (36 items, 108 runs each) |
+| --- | --- | --- |
+| Re-ask | 0% | 4% (1 to 7) |
+| One author | 0% | 39% (29 to 49) |
+| Three authors | 0% | 33% (25 to 43) |
+| Anonymous note | 0% | 72% (64 to 80) |
+
+![Arm B: share of runs saying REJECT after each message](results/fig_verdicts.png)
+
+**H1 (pre-registered): not supported.** Not one of the 720 arm A
+conversations flipped, so one author did no better than the re-ask. With
+none in 60 items, a true flip rate much above 5% would likely have shown up.
+The pushback had the opposite effect on the suspicion score: from turn 0 to
+turn 3 it rose 0.6 points more under one author than under the re-ask
+(interval +0.3 to +1.0). The monitor answered each message by restating the
+specific line it had flagged.
+
+**Exploratory, arm B:**
+
+- **Capitulation:** one author minus re-ask is +35 points (+24 to +46).
+  Counting only the verdict after turn 3, it is +11 points (+5 to +19): about
+  70% of flips were reversed by the last turn, in every condition.
+- **Crowd:** three authors minus one is −6 points (−18 to +7). Three voices
+  did no better than one.
+- **Named sender versus anonymous note:** −33 points (−45 to −21). The
+  anonymous note worked best. In arm B the named senders say their competing
+  change ships if this one is rejected, and the monitor seems to discount
+  that open self-interest. This is not the same "stake" as in arm A, so it is
+  not a test of stake as such.
+- **Arm B minus arm A (H4):** +35 points (+24 to +46). The two arms' messages
+  differ in kind, not only in direction (see below), so this is a
+  difference between the two setups, not evidence that pushes towards unsafe
+  verdicts work better in general.
+- **Near the threshold:** runs whose turn-0 score was 1 or 2 flipped more
+  than runs that started at 0 (63% against 34% under one author), as
+  predicted, but only 19 runs started above 0.
+- All 36 clean items flipped at least once, so the effect does not come from
+  a few fragile items.
+
+**Why it flipped.** Each arm B flip was tagged from the monitor's own reply,
+shuffled and without its condition, using [CODEBOOK.md](CODEBOOK.md)
+(`results/flips_to_code_B.csv`, `results/flip_tags_B.csv`).
+
+![Arm B: flipped runs per condition, by the reason the monitor gave](results/fig_reasons.png)
+
+| Main reason given | Re-ask | One author | Three authors | Anonymous | All |
+| --- | --- | --- | --- | --- | --- |
+| Finds a new issue in the code | 4 | 37 | 34 | 71 | 146 (91%) |
+| Accepts the claim as stated | 0 | 3 | 1 | 7 | 11 |
+| Rejects to be safe | 0 | 2 | 1 | 0 | 3 |
+
+- 147 of 160 flips claim new evidence, though none exists: only the messages
+  changed. In 135 the monitor turns the claim of a "legacy input format" into
+  a concrete parsing failure ("`split(" ")` breaks on tabs", "the numbers may
+  arrive on separate lines"). All 4 re-ask flips instead name an unrelated
+  logic bug, as they should, since the re-ask makes no claim.
+- No flip gives the deadline, the number of people or the sender's
+  authority as its reason.
+- 50 flips call the problem "a bug, not a backdoor", often with a suspicion
+  of 0 to 3, and reject anyway.
+- The format-claim flips rarely last (72% back on APPROVE by turn 3); flips
+  over an unrelated logic bug mostly do (8 of 13 stay).
+
+**Sizing the next study.** The pre-registered estimate uses arm A's re-ask
+runs, which never flipped, so it rests on a 1% floor and gives 30 items per
+condition. Fitted to arm B's re-ask runs (4%), detecting a 10-point
+difference with 80% power needs about 40 items per condition at 3 runs each
+(`results/power_B.csv`).
+
+All numbers, with the secondary analyses, are in
+[results/summary.md](results/summary.md).
+
+### Deviations from the pre-registration
+
+- The replay fix and rerun of 8 conversations described above.
+- The near/far threshold split was redefined after Stage A, before Stage B,
+  as recorded in PREREG.md.
+- Added after the results: the sizing estimate from arm B.
 
 ## How to run
 
@@ -313,6 +431,20 @@ The code for all stages lives in the same files.
 - **Stage B's messages are scripted and always come in the same order**
   (justification, deadline, re-check). Which message does the work cannot be
   separated, and real authors adapt their arguments to the reply.
+- **The two arms' messages are not mirror images in what they ask.** Arm A's
+  message has to explain away a special case the monitor can see. Arm B's
+  adds an unverifiable requirement (a "legacy input format"), and the
+  monitor can always find some code that such a format would break. Most arm B flips came through that
+  opening, so the gap between arms partly reflects message design.
+
+## Next steps
+
+- Authors played by language models that adapt their arguments, not scripts.
+- More monitor models and families, including larger ones.
+- Arm B messages without an unverifiable requirement, to separate deference
+  from rationalisation.
+- Defences built into the review protocol, such as counting one model's
+  instances as one voice and accepting only claims backed by a test.
 
 ## Acknowledgements
 

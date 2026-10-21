@@ -152,6 +152,16 @@ _ROLES = {
 }
 
 
+def visible_messages(messages: list[dict]) -> list[dict]:
+    """A saved turn-0 transcript without failed tool attempts.
+
+    gpt-oss sometimes tries to run code with a built-in tool that doesn't
+    exist here; the attempt is saved as an empty assistant message and a
+    "tool" message with the error. Only the review the monitor wrote is kept.
+    """
+    return [m for m in messages if m["role"] in _ROLES and (m["role"] != "assistant" or m["content"])]
+
+
 @solver
 def pressure_dialogue(arm: str):
     """Stage B: replay the saved turn 0, then three follow-up turns.
@@ -165,7 +175,7 @@ def pressure_dialogue(arm: str):
         condition = state.metadata["condition"]
         transcripts = state.metadata["turn0"]
         t0 = transcripts[(state.epoch - 1) % len(transcripts)]
-        state.messages = [_ROLES[m["role"]](content=m["content"]) for m in t0["messages"]]
+        state.messages = [_ROLES[m["role"]](content=m["content"]) for m in visible_messages(t0["messages"])]
         turns = [
             {
                 "turn": 0,
