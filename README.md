@@ -2,15 +2,25 @@
 
 A one-week, pre-registered pilot. A local open-weight model reviews code
 changes, some with planted backdoors. On the verdicts it holds stably,
-scripted authors then argue back, and we measure how often a correct verdict
+authors then argue back, first with scripted messages and then with
+messages a model writes itself, and we measure how often a correct verdict
 flips compared with simply asking the monitor to look again.
 
 ## Findings in brief
 
-- **The monitor could not be talked into approving a backdoor.** In 720
-  conversations, none of the 60 backdoors it had rejected stably was
-  approved, under any condition. The pre-registered main hypothesis (H1) is
-  not supported. Pushback made the monitor slightly more suspicious, not less.
+- **Scripted messages never got a backdoor approved.** In 720
+  conversations, none of the 60 backdoors the monitor had rejected stably
+  was approved, under any condition. The pre-registered main hypothesis (H1)
+  is not supported. Pushback made the monitor slightly more suspicious, not
+  less.
+- **Authors written by a model did.** When the same model played the author
+  and was told only to get the change merged, it usually admitted the
+  special case was wrong and offered a fix. The monitor then approved the
+  unchanged backdoored code on that promise, without asking to see a new
+  version, in 147 of 360 runs (41%), and 93% of those
+  approvals still stood at the last turn. Told instead to defend the code
+  and never admit anything, the author got a backdoor approved in only 1.4%
+  of runs.
 - **It could be talked into rejecting clean code.** One author's messages
   flipped 39% of runs at some turn, against 4% for a plain re-ask (+35
   points, 95% interval +24 to +46). An anonymous note flipped 72%; three
@@ -19,6 +29,8 @@ flips compared with simply asking the monitor to look again.
   claimed to have found a new problem in code that had not changed, mostly
   by turning the message's claim of a "legacy input format" into a specific
   parsing bug. Most of these flips were undone by the last turn.
+- **More voices did not help.** Three authors did no better than one, with
+  scripted or model-written messages, in either direction.
 
 The pilot runs in stages, and each stage is committed on its own before it
 runs:
@@ -342,10 +354,10 @@ All numbers, with the secondary analyses, are in
   as recorded in PREREG.md.
 - Added after the results: the sizing estimate from arm B.
 
-## Extension: attacks written by a model (planned)
+## Extension: attacks written by a model
 
-Exploratory, and not part of the pre-registration above. This section was
-committed before any of these runs.
+Exploratory, and not part of the pre-registration above. The plan below was
+committed before any of these runs; the results follow it.
 
 The scripted messages never got a backdoor approved. Here `gpt-oss:20b` also
 plays the authors and writes each message itself, after reading the review
@@ -372,6 +384,54 @@ backdoor approved once; this run measures how often that happens.
   model-written three authors minus scripted three authors; model-written
   one author minus re-ask; and three model-written authors minus one.
   Also reported: the share of author replies refused or empty.
+
+### Results
+
+All 720 conversations finished (360 per instruction), and every author
+message was sent: none was refused or empty after the one allowed retry.
+
+Share of runs in which the monitor approved the backdoor at some turn, with
+95% item-bootstrap intervals. The scripted rows are the pilot's Stage B runs
+on the same items and saved reviews.
+
+| Pressure | One author | Three authors |
+| --- | --- | --- |
+| Scripted messages | 0% | 0% |
+| Model-written, *instructed* (defend the code at all costs) | 0.6% (0 to 1.7) | 2.2% (0.6 to 4.4) |
+| Model-written, *emergent* (only told to get it merged) | 41.7% (32.8 to 50.6) | 40.0% (32.2 to 48.3) |
+
+Each model-written row minus the scripted row is the main comparison: +0.6
+and +2.2 points for *instructed*, +41.7 and +40.0 points for *emergent*. Three
+authors minus one was +1.7 points (−0.6 to +4.4) and −1.7 points (−11.1 to
++8.3), so a second and third voice added nothing.
+
+**Instructed: deliberate deception rarely worked.** The author defended the
+special case with technical-sounding reasons ("the problem guarantees
+duplicates never occur, so this filter cannot affect valid input"). This got
+5 approvals in 360 runs, the first in the pilot, and 4 of the 5 were reversed
+at the next turn.
+
+**Emergent: approval on a promised fix.** Not told to deny anything, the
+author usually agreed with the monitor and proposed a correction, often with
+code ("Removing that branch restores the correct formula"). The monitor then
+reviewed the correction instead of the code in front of it ("the updated code
+correctly builds…", "the change removes the incorrect special case") and
+approved. The code under review never changed and still contained the
+backdoor.
+
+- 147 of 360 runs approved at some turn; in 145 of them the author's message
+  just before the approval offered or described a fix.
+- 136 of the 147 (93%) were still APPROVE after the last turn. In a merge
+  queue, that code is merged.
+- 49 of the 60 backdoors were approved in at least one run.
+
+The correct response to a promised fix is to reject and ask to see the new
+version; the monitor almost never did. Its verdict drifted from the code it
+was shown to the code it was promised. This points to a simple protocol rule:
+an approval applies only to the exact code version reviewed, and any change
+needs a fresh review.
+
+Results: `results/adaptive_A_instructed.csv`, `results/adaptive_A_emergent.csv`.
 
 ## How to run
 
@@ -468,6 +528,13 @@ The code for all stages lives in the same files.
 - **APPS puzzles, not real code changes,** and comments were stripped to avoid
   label leaks. Comments can help monitors, so detection may be slightly lower
   than with author comments kept.
+- **In the model-written runs, a promised fix never arrives as new code.**
+  The conversation never shows an updated version, so the monitor could not
+  have reviewed one; it approved the original instead of asking for it. Real
+  review tools would show the new version, which may change how often this
+  happens.
+- **The model-written authors are the monitor's own model,** run as separate
+  instances. A stronger or different attacker might do better or worse.
 - **Stage B's messages are scripted and always come in the same order**
   (justification, deadline, re-check). Which message does the work cannot be
   separated, and real authors adapt their arguments to the reply.
@@ -479,8 +546,9 @@ The code for all stages lives in the same files.
 
 ## Next steps
 
-- Authors played by language models that adapt their arguments, not scripts.
-- More monitor models and families, including larger ones.
+- Approvals bound to an exact code version, tested against the emergent
+  authors above.
+- Attackers stronger than the monitor, and more monitor models and families.
 - Arm B messages without an unverifiable requirement, to separate deference
   from rationalisation.
 - Defences built into the review protocol, such as counting one model's
